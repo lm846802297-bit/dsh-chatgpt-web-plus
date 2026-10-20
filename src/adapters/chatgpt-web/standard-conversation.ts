@@ -105,6 +105,11 @@ export class ConversationStateStore {
     return this.loaded.conversations.find(entry => entry.threadId === threadId);
   }
 
+  /** Every recorded conversation, newest first. Used by the control API to list chat links. */
+  list(): RecordedConversation[] {
+    return this.loaded.conversations.slice().sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
   record(threadId: string, url: string): void {
     const rest = this.loaded.conversations.filter(entry => entry.threadId !== threadId);
     rest.push({ threadId, url, updatedAt: Date.now() });

@@ -273,6 +273,14 @@ export function getConfigPath(): string {
   return join(getConfigDir(), "config.json");
 }
 
+/**
+ * Persisted DSH-thread -> ChatGPT-conversation URL map. Shared by the browser worker (which writes
+ * it) and the control API (which lists the links in the settings panel) so the two never drift.
+ */
+export function conversationStatePath(): string {
+  return join(getConfigDir(), "runtime", "conversations.json");
+}
+
 export function isWindowsPipeEndpoint(value: string): boolean {
   return /^\\\\\.\\pipe\\[A-Za-z0-9._-]+$/.test(value);
 }
@@ -758,7 +766,7 @@ export function providerConfig(config: AppConfig): CodexProviderConfig {
       compressionMode: config.compressionMode,
       conversationMode: config.conversationMode,
       downloadDirectory: config.downloadDirectory,
-      conversationStatePath: join(getConfigDir(), "runtime", "conversations.json"),
+      conversationStatePath: conversationStatePath(),
       ...(config.stallTimeoutSec !== undefined ? { stallTimeoutSec: config.stallTimeoutSec } : {}),
       ...(config.tuning !== undefined ? { tuning: config.tuning } : {}),
       autoApproveToolCalls: manual ? false : config.autoApproveToolCalls,

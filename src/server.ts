@@ -1,6 +1,7 @@
 import { chatGptWebTraceId, createChatGptWebAdapter } from "./adapters/chatgpt-web";
 import { closeChatGptBrowserWorkers } from "./adapters/chatgpt-web/browser-worker";
 import { closeTurnBrokers, TurnBroker } from "./adapters/chatgpt-web/turn-broker";
+import { ConversationStateStore } from "./adapters/chatgpt-web/standard-conversation";
 import { timingSafeEqual, createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { spawn } from "node:child_process";
@@ -23,6 +24,7 @@ import { bridgeToResponsesSSE, buildResponseJSON, formatErrorResponse } from "./
 import type { AppConfig } from "./config";
 import {
   CHATGPT_WEB_TUNING_DEFAULTS,
+  conversationStatePath,
   expandUserPath,
   getConfigDir,
   lunaNativeCompactionEnabled,
@@ -1101,6 +1103,36 @@ export function startServer(
     if (req.method === "GET" && url.pathname === "/v1/control/recent-turns") {
       const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 10) || 10, 1), 25);
       return Response.json({ turns: readRecentBrowserTurns(limit) }, { headers: controlCorsHeaders(req) });
+    }
+    if (req.method === "GET" && url.pathname === "/v1/control/conversations") {
+      // Recorded standard-conversation links, read straight from runtime/conversations.json. Lets the
+      // settings panel show which ChatGPT web chat each DSH thread is driving.
+      const store = new ConversationStateStore(conversationStatePath());
+      return Response.json({ conversations: store.list() }, { headers: controlCorsHeaders(req) });
+    }
+    if (req.method === "POST" && url.pathname === "/v1/control/open-conversation") {
+      // Opens a recorded chat in the OS default browser. The caller passes a threadId rather than a
+      // URL, so this endpoint can never be used to launch an arbitrary address.
+      try {
+        const body = (await req.json()) as { threadId?: unknown };
+        if (typeof body.threadId !== "string" || body.threadId.length === 0) {
+          throw new Error("Provide the DSH threadId of a recorded conversation");
+        }
+        const recorded = new ConversationStateStore(conversationStatePath()).get(body.threadId);
+        if (!recorded) throw new Error("No recorded ChatGPT conversation for that DSH thread");
+        const [command, args] = process.platform === "win32"
+          ? ["explorer", [recorded.url]]
+          : process.platform === "darwin"
+            ? ["open", [recorded.url]]
+            : ["xdg-open", [recorded.url]];
+        spawn(command, args, { detached: true, stdio: "ignore" }).unref();
+        return Response.json({ status: "ok", url: recorded.url }, { headers: controlCorsHeaders(req) });
+      } catch (error) {
+        return Response.json(
+          { status: "error", error: error instanceof Error ? error.message : String(error) },
+          { status: 400, headers: controlCorsHeaders(req) },
+        );
+      }
     }
     if (req.method === "POST" && (url.pathname === "/admin/drain" || url.pathname === "/admin/resume")) {
       if (!controlAuthorized(req)) return new Response("Unauthorized", { status: 401 });

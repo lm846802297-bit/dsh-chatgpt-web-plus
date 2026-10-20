@@ -72,6 +72,14 @@ window.__ModuleLoader__.load({
       'convo.size': 'Size',
       'convo.time': 'Captured',
       'convo.path': 'Path',
+      'convo.links': 'ChatGPT conversations',
+      'convo.linksHint': 'In standard-conversation mode each DSH thread drives one normal ChatGPT web chat. "Open" launches the recorded chat in your default browser.',
+      'convo.linksEmpty': 'No ChatGPT conversation recorded yet. Switch to standard conversation and run one turn.',
+      'convo.linksRefresh': 'Refresh chats',
+      'convo.open': 'Open',
+      'convo.openedLink': 'Opened the ChatGPT chat in your default browser.',
+      'convo.colThread': 'DSH thread',
+      'convo.colUpdated': 'Updated',
       'compress.title': 'History compression',
       'compress.hint': 'How Luna carries conversation history across turns. Applies from the next turn; no sidecar restart needed.',
       'compress.auto': 'Auto (rolling checkpoint for Luna, native compaction elsewhere)',
@@ -150,6 +158,14 @@ const DICT_ZH = {
   'convo.size': '大小',
   'convo.time': '保存时间',
   'convo.path': '完整路径',
+  'convo.links': 'ChatGPT 对话',
+  'convo.linksHint': '标准会话模式下，每个 DSH 会话对应一个普通的 ChatGPT 网页对话。点「打开」用默认浏览器打开该对话。',
+  'convo.linksEmpty': '还没有记录到对话。切到标准会话后跑一轮即可。',
+  'convo.linksRefresh': '刷新对话',
+  'convo.open': '打开',
+  'convo.openedLink': '已在默认浏览器中打开该 ChatGPT 对话。',
+  'convo.colThread': 'DSH 会话',
+  'convo.colUpdated': '更新时间',
 
   'compress.title': '历史压缩方式',
   'compress.hint': '决定 Luna 如何在轮次之间携带对话历史。从下一轮起生效，无需重启侧车。',
@@ -265,6 +281,8 @@ const DICT_ZH = {
       const [downloads, setDownloads] = React.useState([]);
       const [downloadDir, setDownloadDir] = React.useState('');
       const [downloadsBusy, setDownloadsBusy] = React.useState(false);
+      const [conversations, setConversations] = React.useState([]);
+      const [conversationsBusy, setConversationsBusy] = React.useState(false);
       const [compressMode, setCompressMode] = React.useState('auto');
       const [compressDraft, setCompressDraft] = React.useState('auto');
       const [compressNotice, setCompressNotice] = React.useState(null);
@@ -300,6 +318,10 @@ const DICT_ZH = {
             setDownloads(Array.isArray(dl.files) ? dl.files : []);
             setDownloadDir(typeof dl.directory === 'string' ? dl.directory : '');
           } catch { setDownloads([]); setDownloadDir(''); }
+          try {
+            const cv = await api(currentToken, '/v1/control/conversations');
+            setConversations(Array.isArray(cv.conversations) ? cv.conversations : []);
+          } catch { setConversations([]); }
           setTurns(rt.turns || []);
           const next = {};
           for (const [field] of TUNING_FIELDS) {
@@ -356,6 +378,33 @@ const DICT_ZH = {
         } finally {
           setDownloadsBusy(false);
         }
+      }
+
+      async function refreshConversations() {
+        if (!token) return;
+        setConversationsBusy(true);
+        try {
+          const cv = await api(token, '/v1/control/conversations');
+          setConversations(Array.isArray(cv.conversations) ? cv.conversations : []);
+        } catch (error) {
+          setConvNotice({ kind: 'err', text: error instanceof Error ? error.message : String(error) });
+        } finally {
+          setConversationsBusy(false);
+        }
+      }
+
+      async function openConversation(threadId) {
+        if (!token) return;
+        try {
+          await api(token, '/v1/control/open-conversation', { method: 'POST', body: JSON.stringify({ threadId }) });
+          setConvNotice({ kind: 'ok', text: t('convo.openedLink', '已在默认浏览器中打开该 ChatGPT 对话。') });
+        } catch (error) {
+          setConvNotice({ kind: 'err', text: error instanceof Error ? error.message : String(error) });
+        }
+      }
+
+      function shortChatUrl(url) {
+        return String(url || '').replace(/^https:\/\/(?:chatgpt\.com|chat\.openai\.com)\//, '');
       }
 
       async function saveConversation(mode) {
@@ -542,6 +591,47 @@ const DICT_ZH = {
               ),
               convMode === 'standard'
                 ? h('div', null,
+                    h('div', { className: 'cwg-row', style: { marginTop: '12px', alignItems: 'baseline', gap: '8px' } },
+                      h('span', { className: 'cwg-muted', style: { fontWeight: 600 } }, t('convo.links', 'ChatGPT 对话')),
+                      h('button', {
+                        className: 'cwg-btn cwg-secondary',
+                        style: { padding: '2px 10px', fontSize: '12px' },
+                        disabled: conversationsBusy,
+                        onClick: refreshConversations,
+                      }, t('convo.linksRefresh', '刷新对话')),
+                      h('span', { className: 'cwg-muted' }, String(conversations.length)),
+                    ),
+                    h('p', { className: 'cwg-muted', style: { marginTop: '4px' } },
+                      t('convo.linksHint', '标准会话模式下，每个 DSH 会话对应一个普通的 ChatGPT 网页对话。点「打开」用默认浏览器打开该对话。')),
+                    conversations.length === 0
+                      ? h('p', { className: 'cwg-muted', style: { marginTop: '6px' } },
+                          t('convo.linksEmpty', '还没有记录到对话。切到标准会话后跑一轮即可。'))
+                      : conversations.map((c) => h('div', {
+                          key: c.threadId,
+                          className: 'cwg-row',
+                          style: { marginTop: '6px', gap: '8px', alignItems: 'center' },
+                        },
+                          h('span', {
+                            className: 'cwg-muted',
+                            title: c.threadId,
+                            style: { flex: '0 0 auto', minWidth: '74px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+                          }, String(c.threadId || '').slice(0, 10)),
+                          h('a', {
+                            href: c.url,
+                            target: '_blank',
+                            rel: 'noreferrer',
+                            className: 'cwg-muted',
+                            title: c.url,
+                            style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--dsw-alias-brand-primary)' },
+                          }, shortChatUrl(c.url)),
+                          h('span', { className: 'cwg-muted', style: { flex: '0 0 auto' } },
+                            c.updatedAt ? new Date(c.updatedAt).toLocaleString() : ''),
+                          h('button', {
+                            className: 'cwg-btn cwg-secondary',
+                            style: { padding: '2px 10px', fontSize: '12px', flex: '0 0 auto' },
+                            onClick: () => openConversation(c.threadId),
+                          }, t('convo.open', '打开')),
+                        )),
                     h('div', { className: 'cwg-row', style: { marginTop: '12px', alignItems: 'baseline', gap: '8px' } },
                       h('span', { className: 'cwg-muted', style: { fontWeight: 600 } }, t('convo.downloads', '最近下载')),
                       h('button', {
