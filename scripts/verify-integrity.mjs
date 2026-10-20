@@ -1,5 +1,5 @@
 /**
- * dsh-chatgpt-web-local 文件完整性核对。
+ * @lm846802297-bit/dsh-chatgpt-web-plus 文件完整性核对。
  *
  * 背景：这个包最初是靠手动列举文件从官方 tarball 复制过来的，结果漏了
  * `client.js`（整个设置界面）、`assets/`、`screenshots.json` —— 而漏掉的
@@ -44,7 +44,7 @@ const fail = (msg) => { failures++; say(`  ✗ ${msg}`) }
 const ok = (msg) => say(`  ✓ ${msg}`)
 
 // ---------- 1. 准备官方基线 ----------
-say('=== dsh-chatgpt-web-local 完整性核对 ===')
+say('=== @lm846802297-bit/dsh-chatgpt-web-plus 完整性核对 ===')
 say(`本地包: ${PKG}`)
 say(`基线  : ${PKG_NAME}@${PKG_VERSION}`)
 say('')
@@ -136,11 +136,11 @@ say('')
 say('[6] 包名与版本一致性')
 try {
   const pkg = JSON.parse(fs.readFileSync(path.join(PKG, 'package.json'), 'utf8'))
-  const expectName = 'dsh-chatgpt-web-local'
+  const expectName = '@lm846802297-bit/dsh-chatgpt-web-plus'
   if (pkg.name === expectName) ok(`package.json name = ${pkg.name}`)
   else fail(`package.json name = ${pkg.name}，应为 ${expectName}`)
-  if (String(pkg.version).includes('local')) ok(`version = ${pkg.version}（本地标记）`)
-  else fail(`version = ${pkg.version}，建议带 local 标记`)
+  if (String(pkg.version).includes('plus')) ok(`version = ${pkg.version}（fork 标记）`)
+  else fail(`version = ${pkg.version}，建议带 plus 标记`)
 
   // cordis.patch.yml 里的插件名必须与包名一致
   const patch = fs.readFileSync(path.join(PKG, 'cordis.patch.yml'), 'utf8')
@@ -172,12 +172,12 @@ say('[7] profile 依赖链接')
 const PROFILE_PKG = 'C:/Users/84680/.dsh/profiles/desktop/package.json'
 try {
   const profile = JSON.parse(fs.readFileSync(PROFILE_PKG, 'utf8'))
-  const declared = profile.dependencies?.['dsh-chatgpt-web-local']
+  const declared = profile.dependencies?.['@lm846802297-bit/dsh-chatgpt-web-plus']
   if (declared === 'link:vendor/dsh-chatgpt-web') ok(`profile 依赖 = ${declared}`)
-  else if (declared === undefined) fail('profile 未声明 dsh-chatgpt-web-local')
+  else if (declared === undefined) fail('profile 未声明 @lm846802297-bit/dsh-chatgpt-web-plus')
   else fail(`profile 依赖 = ${declared}，应为 link:vendor/dsh-chatgpt-web`)
 
-  const inBundles = (profile.dsh?.profile?.bundles ?? []).includes('dsh-chatgpt-web-local')
+  const inBundles = (profile.dsh?.profile?.bundles ?? []).includes('@lm846802297-bit/dsh-chatgpt-web-plus')
   if (inBundles) ok('已列入 dsh.profile.bundles')
   else fail('未列入 dsh.profile.bundles（不会加载）')
 
@@ -185,7 +185,7 @@ try {
     fail('profile 仍含 @wlv-zedd 引用（市场会显示已安装）')
   } else ok('profile 无 @wlv-zedd 残留')
 
-  const linkPath = 'C:/Users/84680/.dsh/profiles/desktop/node_modules/dsh-chatgpt-web-local'
+  const linkPath = 'C:/Users/84680/.dsh/profiles/desktop/node_modules/@lm846802297-bit/dsh-chatgpt-web-plus'
   if (fs.existsSync(linkPath)) ok('node_modules 链接存在')
   else fail('node_modules 链接缺失，需 pnpm install')
 } catch (error) {

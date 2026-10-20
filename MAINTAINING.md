@@ -1,10 +1,10 @@
-# dsh-chatgpt-web-local 本地维护分支
+# @lm846802297-bit/dsh-chatgpt-web-plus（本地维护分支）
 
-这是 `@wlv-zedd/dsh-chatgpt-web` 的本地分支。包名已改为 **`dsh-chatgpt-web-local`**，
+这是 `@wlv-zedd/dsh-chatgpt-web` 的本地分支。包名已改为 **`@lm846802297-bit/dsh-chatgpt-web-plus`**，
 插件市场不再把它识别为自己的包：
 
 - 市场里 `@wlv-zedd/dsh-chatgpt-web` 显示为**未安装**（profile 里已无该引用）
-- 本地版以 `dsh-chatgpt-web-local` 的身份出现在 profile 的 bundles 列表中
+- 本地版以 `@lm846802297-bit/dsh-chatgpt-web-plus` 的身份出现在 profile 的 bundles 列表中
 - 市场更新无法覆盖它（`link:` 依赖 + 不同包名，双重隔离）
 
 ---
@@ -14,8 +14,8 @@
 | 位置 | 作用 |
 |---|---|
 | `~/.dsh/profiles/desktop/vendor/dsh-chatgpt-web/` | **实际运行的副本**（唯一事实来源） |
-| `~/.dsh/profiles/desktop/node_modules/dsh-chatgpt-web-local` | 指向上面那个目录的符号链接 |
-| `~/.dsh/profiles/desktop/package.json` | 依赖写成 `"dsh-chatgpt-web-local": "link:vendor/dsh-chatgpt-web"` |
+| `~/.dsh/profiles/desktop/node_modules/@lm846802297-bit/dsh-chatgpt-web-plus` | 指向上面那个目录的 junction |
+| `~/.dsh/profiles/desktop/package.json` | 依赖写成 `"@lm846802297-bit/dsh-chatgpt-web-plus": "link:vendor/dsh-chatgpt-web"` |
 
 `link:` 依赖的意义：pnpm 只维护一个符号链接，**永远不会**再把市场版本下载回来覆盖你的改动。
 这一点和之前 `dsh-our-free-model` 的处理方式一致，那边是踩过坑之后的做法。
@@ -26,12 +26,27 @@
 `package.json` 里有没有 `@wlv-zedd/dsh-chatgpt-web` 这个 key。
 保留原名的话，市场会一直显示「已安装」，点更新/卸载都可能把本地改动冲掉。
 
-改成 `dsh-chatgpt-web-local` 之后：
+改成 `@lm846802297-bit/dsh-chatgpt-web-plus` 之后：
 
 - 市场侧：原名彻底消失 → 显示未安装，更新按钮不再指向它
 - 本地侧：新名字出现在 `dsh.profile.bundles`，DSH 照常加载
 - 改动位置只有两处：`package.json` 的 `name`、`cordis.patch.yml` 的 `name`
   （插件源码内部不引用包名，所以改名是安全的）
+
+> **2026-10-20 改名记录**：该仓库已发布为独立 fork
+> `@lm846802297-bit/dsh-chatgpt-web-plus`（版本 `1.0.4-plus.1`），所以本地
+> vendor 包名、`cordis.patch.yml` 里的 bundle 名、以及 profile 侧的五处引用
+> 都要跟着用新包名，否则 Desktop 的 overlay 身份校验会报
+> `profile package identity is invalid`：
+>
+> 1. `vendor/dsh-chatgpt-web/package.json` 的 `name`
+> 2. `vendor/dsh-chatgpt-web/cordis.patch.yml` 的 bundle `name`（id 用 `chatgpt-web-plus`）
+> 3. `~/.dsh/profiles/desktop/package.json`：`dependencies` 的 key 与 `dsh.profile.bundles` 里的条目
+> 4. `~/.dsh/profiles/desktop/cordis.yml` 对应 loader 行的 `id` / `name`
+> 5. `~/.dsh/profiles/desktop/{pnpm-lock.yaml, node_modules/.package-map.json}` 与
+>    `node_modules/@lm846802297-bit/dsh-chatgpt-web-plus`（junction）
+>
+> 检查脚本：`node scripts/verify-integrity.mjs`
 
 ---
 

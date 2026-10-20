@@ -1,6 +1,6 @@
-# dsh-chatgpt-web-local bundle patch: inserts the locally-maintained sidecar
+# @lm846802297-bit/dsh-chatgpt-web-plus bundle patch: inserts the locally-maintained sidecar
 # plugin into a profile layer stack. The package was renamed from
 # @wlv-zedd/dsh-chatgpt-web so the plugin market no longer treats it as its own.
 - insert:
-    - id: dsh-chatgpt-web-local
-      name: 'dsh-chatgpt-web-local'
+    - id: chatgpt-web-plus
+      name: '@lm846802297-bit/dsh-chatgpt-web-plus'
