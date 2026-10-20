@@ -1,14 +1,14 @@
 {
-  "name": "dsh-chatgpt-web-local",
-  "version": "1.0.4-local.1",
-  "description": "DeepSeek Harness Cordis plugin for free ChatGPT Web (GPT 5.6 Luna) pure chat and zero API fees. [本地维护分支]",
+  "name": "@lm846802297-bit/dsh-chatgpt-web-plus",
+  "version": "1.0.4-plus.1",
+  "description": "DeepSeek Harness Cordis plugin for free ChatGPT Web (GPT 5.6 Luna) pure chat and zero API fees. [Plus/GPT-6 维护分支，基于 WLV-ZEDD/dsh-chatgpt-web]",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/WLV-ZEDD/dsh-chatgpt-web.git"
+    "url": "git+https://github.com/lm846802297-bit/dsh-chatgpt-web-plus.git"
   },
-  "homepage": "https://github.com/WLV-ZEDD/dsh-chatgpt-web#readme",
+  "homepage": "https://github.com/lm846802297-bit/dsh-chatgpt-web-plus#readme",
   "bugs": {
-    "url": "https://github.com/WLV-ZEDD/dsh-chatgpt-web/issues"
+    "url": "https://github.com/lm846802297-bit/dsh-chatgpt-web-plus/issues"
   },
   "author": "WLV-ZEDD",
   "type": "module",
