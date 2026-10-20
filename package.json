@@ -1,0 +1,97 @@
+{
+  "name": "dsh-chatgpt-web-local",
+  "version": "1.0.4-local.1",
+  "description": "DeepSeek Harness Cordis plugin for free ChatGPT Web (GPT 5.6 Luna) pure chat and zero API fees. [本地维护分支]",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WLV-ZEDD/dsh-chatgpt-web.git"
+  },
+  "homepage": "https://github.com/WLV-ZEDD/dsh-chatgpt-web#readme",
+  "bugs": {
+    "url": "https://github.com/WLV-ZEDD/dsh-chatgpt-web/issues"
+  },
+  "author": "WLV-ZEDD",
+  "type": "module",
+  "main": "./lib/plugin.js",
+  "bin": {
+    "dsh-chatgpt-web": "./lib/cli.js"
+  },
+  "exports": {
+    ".": "./lib/plugin.js",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "assets",
+    "client.js",
+    "cordis.patch.yml",
+    "screenshots.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "bun build src/cli.ts src/plugin.ts --outdir lib --target node --format esm --packages external",
+    "start": "node lib/cli.js serve",
+    "setup": "node lib/cli.js setup",
+    "login": "node lib/cli.js login",
+    "doctor": "node lib/cli.js doctor",
+    "test": "node scripts/smoke-tarball.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "chromium-bidi": "12.1.0",
+    "fflate": "^0.8.2",
+    "playwright-core": "^1.62.0",
+    "tiktoken": "1.0.22",
+    "turndown": "7.2.0",
+    "turndown-plugin-gfm": "1.0.2",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.0",
+    "@types/turndown": "5.0.5",
+    "typescript": "5.9.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "bun": ">=1.3.0",
+    "node": ">=22.19.0",
+    "dsh": ">=0.2.0-rc.2"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "chatgpt",
+    "chatgpt-web",
+    "playwright",
+    "responses-api",
+    "free-ai"
+  ],
+  "license": "MIT"
+}

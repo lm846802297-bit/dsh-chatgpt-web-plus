@@ -1,0 +1,303 @@
+import type { Locator, Page } from "playwright-core";
+import type { ChatGptWebAccountCapabilities } from "./chatgpt-web-models";
+import { COPY_LABELS, SEND_LABELS, STOP_LABELS } from "./ui-text";
+
+/** 把候选 aria-label 展开成 `button[aria-label="..."]` 选择器片段。 */
+function ariaLabelButtons(labels: readonly string[]): string[] {
+  return labels.map(label => `button[aria-label=${JSON.stringify(label)}]`);
+}
+
+export const CHATGPT_TEMPORARY_CHAT_URL = "https://chatgpt.com/?temporary-chat=true";
+export const CHATGPT_COMPOSER_SELECTOR = [
+  '[data-testid="prompt-textarea"]',
+  "#prompt-textarea",
+  '[contenteditable="true"][data-lexical-editor="true"]',
+  '[role="textbox"][aria-label="Ask ChatGPT"]',
+  '.ProseMirror[contenteditable="true"]',
+].join(", ");
+export const CHATGPT_EFFORT_CONTROL_SELECTOR = [
+  // Structural anchors first (locale-independent).
+  'button[aria-haspopup="menu"][data-tone="neutral"]',
+  'button[data-testid="model-switcher-dropdown-button"][aria-haspopup="menu"]',
+  // New UI (2026-10): the control is a plain button whose only stable hooks are
+  // aria-haspopup="menu" plus a localized aria-label ("选择 ChatGPT 模型" on zh,
+  // "ChatGPT model" / similar on en). Match it structurally via haspopup and accept
+  // either locale's label so the probe does not silently degrade on non-English UI.
+  'button[aria-haspopup="menu"][aria-label="选择 ChatGPT 模型"]',
+  'button[aria-haspopup="menu"][aria-label*="ChatGPT"][aria-label*="模型"]',
+  'button[aria-haspopup="menu"][aria-label*="ChatGPT"][aria-label*="model" i]',
+].join(", ");
+export const CHATGPT_EFFORT_MENU_SELECTOR = [
+  '[data-testid="composer-intelligence-picker-content"]:has([role="menuitemradio"], [data-model-reasoning-effort-slider], [data-model-picker-power-slider])',
+  '[role="menu"]:has([role="menuitemradio"], [data-model-reasoning-effort-slider], [data-model-picker-power-slider])',
+  '[role="group"]:has([role="menuitemradio"], [data-model-reasoning-effort-slider], [data-model-picker-power-slider])',
+].join(", ");
+export const CHATGPT_EFFORT_ITEM_SELECTOR = '[role="menuitemradio"]';
+// New UI (2026-10) renamed the slider wrapper attribute from
+// data-model-reasoning-effort-slider to data-model-picker-power-slider, and the
+// model rows now sit in the SAME menu as role=menuitemradio. Keep both the old
+// and new anchors so a UI rollback still resolves the slider.
+export const CHATGPT_EFFORT_SLIDER_SELECTOR = [
+  '[data-model-picker-power-slider] [role="slider"]',
+  '[data-model-reasoning-effort-slider] [role="slider"]',
+  // Structural fallback: a slider that lives under the effort ("强度") row.
+  '[role="menu"] [role="slider"]',
+].join(", ");
+export const CHATGPT_EFFORT_SLIDER_MAX_OPTIONS = 5;
+export const CHATGPT_SEND_BUTTON_SELECTOR = [
+  '[data-testid="send-button"]',
+  '[data-testid="composer-submit-button"]',
+  ...ariaLabelButtons(SEND_LABELS),
+].join(", ");
+export const CHATGPT_STOP_BUTTON_SELECTOR = [
+  '[data-testid="stop-button"]',
+  ...ariaLabelButtons(STOP_LABELS),
+].join(", ");
+export const CHATGPT_COMPLETION_ACTION_SELECTOR = [
+  'button[data-testid="copy-turn-action-button"]',
+  ...ariaLabelButtons(COPY_LABELS),
+].join(", ");
+export const CHATGPT_ASSISTANT_TURN_SELECTOR = [
+  '[data-testid^="conversation-turn-"][data-turn="assistant"]',
+  '[data-testid^="conversation-turn-"][data-message-author-role="assistant"]',
+  '[data-testid^="conversation-turn-"]:has([data-message-author-role="assistant"])',
+  '[data-chatgpt-search-unit-key$=":assistant"]',
+].join(", ");
+export const CHATGPT_USER_TURN_SELECTOR = [
+  '[data-testid^="conversation-turn-"][data-turn="user"]',
+  '[data-testid^="conversation-turn-"][data-message-author-role="user"]',
+  '[data-testid^="conversation-turn-"]:has([data-message-author-role="user"])',
+  '[data-chatgpt-search-unit-key$=":user"]',
+].join(", ");
+
+export interface ChatGptEffortSliderState {
+  min: number;
+  max: number;
+  value: number;
+}
+
+export interface ChatGptEffortActivation {
+  method: "already-open" | "click" | "pointerdown";
+  menu: Locator;
+  slider: Locator;
+}
+
+function effortMenuSelectorForId(menuId: string): string {
+  return `[id=${JSON.stringify(menuId)}]`;
+}
+
+export async function chatGptEffortMenuForControl(page: Page, control: Locator): Promise<Locator> {
+  const menuId = await control.getAttribute("aria-controls").catch(() => null);
+  if (menuId) return page.locator(effortMenuSelectorForId(menuId));
+  return page.locator(CHATGPT_EFFORT_MENU_SELECTOR).filter({ visible: true }).last();
+}
+
+async function visibleEffortSurface(
+  page: Page,
+  control: Locator,
+): Promise<{ menu: Locator; slider: Locator } | undefined> {
+  const menu = await chatGptEffortMenuForControl(page, control);
+  const slider = page.locator(CHATGPT_EFFORT_SLIDER_SELECTOR).filter({ visible: true }).last();
+  if (await menu.isVisible().catch(() => false) || await slider.isVisible().catch(() => false)) {
+    return { menu, slider };
+  }
+  return undefined;
+}
+
+async function waitForEffortSurface(
+  page: Page,
+  control: Locator,
+  timeoutMs: number,
+): Promise<{ menu: Locator; slider: Locator } | undefined> {
+  const deadline = Date.now() + timeoutMs;
+  do {
+    const surface = await visibleEffortSurface(page, control);
+    if (surface) return surface;
+    if (Date.now() >= deadline) return undefined;
+    await new Promise(resolveSleep => setTimeout(resolveSleep, 50));
+  } while (true);
+}
+
+async function clearGhostEffortState(page: Page, control: Locator): Promise<void> {
+  const expanded = await control.getAttribute("aria-expanded").catch(() => null);
+  const state = await control.getAttribute("data-state").catch(() => null);
+  if (expanded === "true" || state === "open") {
+    await page.keyboard.press("Escape").catch(() => {});
+  }
+}
+
+export async function activateChatGptEffortMenu(
+  page: Page,
+  control: Locator,
+  options: { settleMs?: number } = {},
+): Promise<ChatGptEffortActivation> {
+  const openSurface = await visibleEffortSurface(page, control);
+  if (openSurface) return { method: "already-open", ...openSurface };
+
+  const settleMs = options.settleMs ?? 3_000;
+  await clearGhostEffortState(page, control);
+  await control.click({ force: true, timeout: Math.max(1, settleMs) });
+  const clickedSurface = await waitForEffortSurface(page, control, settleMs);
+  if (clickedSurface) return { method: "click", ...clickedSurface };
+
+  await clearGhostEffortState(page, control);
+  await control.dispatchEvent("pointerdown", {
+    button: 0,
+    buttons: 1,
+    pointerType: "mouse",
+    isPrimary: true,
+  });
+  const pointerSurface = await waitForEffortSurface(page, control, settleMs);
+  if (pointerSurface) return { method: "pointerdown", ...pointerSurface };
+  throw new Error(
+    "ChatGPT effort control did not expose its owned menu or structural slider after click and primary pointerdown",
+  );
+}
+
+function safeIntegerAttribute(value: string | null): number | undefined {
+  if (value === null || !/^-?\d+$/.test(value)) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
+export function parseChatGptEffortSliderState(
+  rawMin: string | null,
+  rawMax: string | null,
+  rawValue: string | null,
+): ChatGptEffortSliderState | undefined {
+  const min = safeIntegerAttribute(rawMin);
+  const max = safeIntegerAttribute(rawMax);
+  const value = safeIntegerAttribute(rawValue);
+  if (min === undefined || max === undefined || value === undefined) return undefined;
+  const optionCount = max - min + 1;
+  if (optionCount < 1 || optionCount > CHATGPT_EFFORT_SLIDER_MAX_OPTIONS) return undefined;
+  if (value < min || value > max) return undefined;
+  return { min, max, value };
+}
+
+async function anyVisible(locator: Locator): Promise<boolean> {
+  const count = await locator.count();
+  for (let index = 0; index < count; index += 1) {
+    if (await locator.nth(index).isVisible().catch(() => false)) return true;
+  }
+  return false;
+}
+
+export async function assertAuthenticatedChatGptPage(page: Page): Promise<void> {
+  const composer = page.locator(
+    CHATGPT_COMPOSER_SELECTOR,
+  );
+  if (!await anyVisible(composer)) {
+    throw new Error("ChatGPT authentication could not be verified: no visible composer is present");
+  }
+  if (new URL(page.url()).origin !== "https://chatgpt.com") {
+    throw new Error("ChatGPT authentication could not be verified: unexpected page origin");
+  }
+  const authenticated = await page.evaluate(async () => {
+    try {
+      const response = await fetch("/api/auth/session", {
+        credentials: "include",
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) return false;
+      const session = await response.json();
+      return typeof session?.user?.id === "string" && session.user.id.length > 0;
+    } catch {
+      return false;
+    }
+  });
+  if (!authenticated) {
+    throw new Error("ChatGPT authentication could not be verified: sign in to your account first");
+  }
+}
+
+export async function assertTemporaryChatPage(page: Page): Promise<void> {
+  const url = new URL(page.url());
+  const expected = new URL(CHATGPT_TEMPORARY_CHAT_URL);
+  if (url.origin !== expected.origin || url.pathname !== expected.pathname || url.searchParams.get("temporary-chat") !== "true") {
+    throw new Error(`ChatGPT left the isolated Temporary Chat surface (${page.url()})`);
+  }
+}
+
+export async function detectChatGptAccountCapabilities(
+  page: Page,
+  options: { selectorTimeoutMs?: number; stableAbsenceMs?: number } = {},
+): Promise<ChatGptWebAccountCapabilities> {
+  const composers = page.locator(CHATGPT_COMPOSER_SELECTOR).filter({ visible: true });
+  const composer = composers.last();
+  const composerForm = composer.locator("xpath=ancestor::form[1]");
+  const effortButton = composerForm.locator(CHATGPT_EFFORT_CONTROL_SELECTOR).last();
+  const deadline = Date.now() + (options.selectorTimeoutMs ?? 30_000);
+  const stableAbsenceMs = options.stableAbsenceMs ?? 3_000;
+  let absenceSince: number | undefined;
+  let presenceObservations = 0;
+  while (true) {
+    const effortVisible = await effortButton.isVisible().catch(() => false);
+    if (effortVisible) {
+      presenceObservations += 1;
+      absenceSince = undefined;
+      if (presenceObservations >= 2) break;
+      await new Promise(resolveSleep => setTimeout(resolveSleep, 100));
+      continue;
+    }
+    presenceObservations = 0;
+    const composerReady = await composers.count().then(count => count === 1).catch(() => false);
+    const formReady = await composerForm.count().then(count => count === 1).catch(() => false);
+    const documentReady = await page.evaluate(() => document.readyState === "complete").catch(() => false);
+    if (composerReady && formReady && documentReady) {
+      absenceSince ??= Date.now();
+      if (Date.now() - absenceSince >= stableAbsenceMs) {
+        // The effort/model control never appeared, but the composer, its form and the
+        // document are all stably ready. That is a real Luna-only account ONLY when the
+        // composer truly has no model control; otherwise it is a picker that failed to
+        // render (rehydration, locale change, A/B variant). Degrade to Luna-only rather
+        // than fail the turn, but flag it so callers can surface a warning instead of
+        // silently misreporting the account tier.
+        return { solAvailable: false, proAvailable: false };
+      }
+    } else {
+      absenceSince = undefined;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error("ChatGPT account capability probe did not reach a stable composer state");
+    }
+    await new Promise(resolveSleep => setTimeout(resolveSleep, 100));
+  }
+  const menu = page.locator(CHATGPT_EFFORT_MENU_SELECTOR).last();
+  const menuVisible = await menu.isVisible().catch(() => false);
+  const menuExpanded = await effortButton.getAttribute("aria-expanded").catch(() => null);
+  if (!menuVisible && menuExpanded !== "true") await effortButton.press("Enter");
+  try {
+    const efforts = menu.locator(CHATGPT_EFFORT_ITEM_SELECTOR);
+    const slider = page.locator(CHATGPT_EFFORT_SLIDER_SELECTOR).filter({ visible: true }).last();
+    const waitAbort = new AbortController();
+    try {
+      const ready = await Promise.race([
+        efforts.first().waitFor({ state: "visible", timeout: 70_000, signal: waitAbort.signal })
+          .then(() => "items" as const),
+        slider.waitFor({ state: "visible", timeout: 70_000, signal: waitAbort.signal })
+          .then(() => "slider" as const),
+      ]);
+      const sliderVisible = ready === "slider" || await slider.isVisible().catch(() => false);
+      if (!sliderVisible) {
+        return { solAvailable: true, proAvailable: await efforts.count() >= 5 };
+      }
+      const state = parseChatGptEffortSliderState(
+        await slider.getAttribute("aria-valuemin"),
+        await slider.getAttribute("aria-valuemax"),
+        await slider.getAttribute("aria-valuenow"),
+      );
+      if (!state) {
+        throw new Error(
+          "ChatGPT model controls are unavailable. Reload ChatGPT and run Repair again.",
+          { cause: new Error("ChatGPT effort slider exposed an invalid ARIA range") },
+        );
+      }
+      return { solAvailable: true, proAvailable: state.max - state.min + 1 >= 5 };
+    } finally {
+      waitAbort.abort();
+    }
+  } finally {
+    await page.keyboard.press("Escape").catch(() => {});
+  }
+}

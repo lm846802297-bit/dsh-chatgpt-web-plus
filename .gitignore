@@ -1,0 +1,24 @@
+# 依赖
+node_modules/
+
+# 构建产物备份（维护时手动留的快照）
+lib/*.bak-*
+lib/*.bak
+
+# 本地调试与验证脚本（非发布内容）
+_bugcheck/
+_bugcheck/**
+
+# 运行期产物 / 诊断转储
+diagnostics/
+*.log
+
+# 编辑器与系统
+.DS_Store
+Thumbs.db
+*.swp
+
+# 本地敏感配置（即使误拷进来也不会被提交）
+config.json
+storage-state.json
+*.token
