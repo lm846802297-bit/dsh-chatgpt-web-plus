@@ -1,5 +1,5 @@
 /**
- * Client half of dsh-chatgpt-web-local: a "ChatGPT Web" page in the DSH Web GUI settings
+ * Client half of @lm846802297-bit/dsh-chatgpt-web-plus: a "ChatGPT Web" page in the DSH Web GUI settings
  * panel. It reads the sidecar control API (status, tuning config, recent browser turns) and lets
  * the user tune the browser transport limits without touching config files.
  *
@@ -8,7 +8,7 @@
  * component-local <style> element so unmounting removes it.
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-chatgpt-web-local',
+  id: '@lm846802297-bit/dsh-chatgpt-web-plus',
   factory(require) {
     const React = require('react');
     const h = React.createElement;

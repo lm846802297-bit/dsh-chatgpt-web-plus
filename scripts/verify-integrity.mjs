@@ -193,6 +193,29 @@ try {
 }
 say('')
 
+// ---------- 8. 客户端模块 id ----------
+// @deepseek-ai/dsh-client-modules 用 **npm 包名** 作为 boot 图 row id
+// (lib/index.js reconcilePackage → graphRow(packageName, ...))，浏览器侧
+// register() 只剥掉结尾的 "/client" 后直接拿 registration.id 当 key。
+// 所以 client.js 里的 id 必须逐字等于 package.json 的 name，否则：
+//   arrive(row) → factories.has(id) 为 false → 退到单资源 URL 再执行一次
+//   → register() 抛 "duplicate factory registration" → 整个 renderer boot 失败。
+// 改名时最容易漏掉这里，而症状（白屏 + RendererStartupFailure）离根因很远。
+say('[8] client.js 的模块 id 与包名一致')
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(PKG, 'package.json'), 'utf8'))
+  const client = fs.readFileSync(path.join(PKG, 'client.js'), 'utf8')
+  const call = client.indexOf('__ModuleLoader__.load(')
+  const window = call === -1 ? '' : client.slice(call, call + 4000)
+  const match = window.match(/\bid\s*:\s*(['"`])([^'"`]+)\1/)
+  const registered = match?.[2]
+  if (registered === pkg.name) ok(`client.js id = ${registered}`)
+  else fail(`client.js id = ${registered ?? '(未找到)'}，应为 ${pkg.name}（否则 renderer boot 直接失败）`)
+} catch (error) {
+  fail(`读取 client.js 失败: ${error?.message ?? error}`)
+}
+say('')
+
 // ---------- 结论 ----------
 if (failures === 0) {
   say('结果：完整。所有官方文件在位，包名一致，链接正常。')
